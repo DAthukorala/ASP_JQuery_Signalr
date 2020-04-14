@@ -8,7 +8,6 @@ namespace SignalrApp.Communications
 {
     public class CommunicationsHub : Hub
     {
-        private Dictionary<string, ConnectionDetails> _connections { get; set; } = new Dictionary<string, ConnectionDetails>();
         private const string _organizationPrefix = "Organization_";
         private const string _clientReceiveMessageMethodName = "receiveMessage";
 
@@ -30,91 +29,45 @@ namespace SignalrApp.Communications
             await base.OnReconnected();
         }
 
+        //to change organization, call LeaveOrganizationGroup before changing organization and JoinOrganizationGroup after change
         public async Task JoinOrganizationGroup()
         {
-            var connectionInfo = HandleExistingConnection();
-            var groupName = GetGroupName(connectionInfo.OrganizationId);
-            await Groups.Add(connectionInfo.ConnectionId, groupName);
+            var groupName = GetGroupName();
+            await Groups.Add(Context.ConnectionId, groupName);
         }
 
         public async Task LeaveOrganizationGroup()
         {
-            var connectionInfo = GetConnectionInfo(Context.ConnectionId);
-            if (connectionInfo != null)
-            {
-                if (!string.IsNullOrWhiteSpace(connectionInfo.OrganizationId))
-                {
-                    var groupName = GetGroupName(connectionInfo.OrganizationId);
-                    await Groups.Remove(connectionInfo.ConnectionId, groupName);
-                }
-            }
-            _connections.Remove(Context.ConnectionId);
+            var groupName = GetGroupName();
+            await Groups.Remove(Context.ConnectionId, groupName);
         }
 
-        public async Task SendMessage(CommunicationMessage communication)
+        public void SendMessage(CommunicationMessage message)
         {
-            var connectionInfo = GetConnectionInfo(Context.ConnectionId);
-            if (connectionInfo != null)
+            IClientProxy proxy = null;
+            switch (message.CommunicationType)
             {
-                IClientProxy proxy = null;
-                switch (communication.CommunicationType)
-                {
-                    case RecipientType.Broadcast:
-                        proxy = Clients.All;
-                        break;
-                    case RecipientType.Organization:
-                        proxy = Clients.Group(GetGroupName(communication.OrganizationId));
-                        break;
-                    case RecipientType.User:
-                        proxy = Clients.User(communication.UserId);
-                        break;
-                }
-                await proxy?.Invoke(_clientReceiveMessageMethodName, communication);
+                case RecipientType.Broadcast:
+                    proxy = Clients.All;
+                    break;
+                case RecipientType.Organization:
+                    proxy = Clients.Group(GetGroupName());
+                    break;
+                case RecipientType.User:
+                    proxy = Clients.User(message.UserId);
+                    break;
             }
+            var tasks = new List<Task>() { proxy?.Invoke(_clientReceiveMessageMethodName, message) };
+            if (message.IsPersist)
+            {
+                //use DI here
+                var repository = new MessageRepository();
+                tasks.Add(repository.InsertMessage(message));
+            }
+            Task.WaitAll(tasks.ToArray());
         }
 
-        //following methods can be added to a separate class.
-        //but just added them here to avoid any mismatches in DIs in the existing system
-
-        private ConnectionDetails HandleExistingConnection()
-        {
-            var userId = CommunicationsIdProvider.GetUserId(Context.User);
-            var organizationId = CommunicationsIdProvider.GetOrganizationId(Context.User);
-            var connectionId = Context.ConnectionId;
-
-            var connectionInfo = GetConnectionInfo(connectionId);
-            if (connectionInfo != null)
-            {
-                if (!string.IsNullOrWhiteSpace(connectionInfo.OrganizationId))
-                {
-                    var groupName = GetGroupName(connectionInfo.OrganizationId);
-                    Groups.Remove(connectionInfo.ConnectionId, groupName);
-                }
-                connectionInfo.OrganizationId = organizationId;
-            }
-            else
-            {
-                connectionInfo = new ConnectionDetails
-                {
-                    ConnectionId = connectionId,
-                    UserId = userId,
-                    OrganizationId = organizationId
-                };
-                _connections[connectionId] = connectionInfo;
-            }
-            return connectionInfo;
-        }
-
-        private ConnectionDetails GetConnectionInfo(string connectionId)
-        {
-            if (_connections.TryGetValue(connectionId, out ConnectionDetails value))
-            {
-                return value;
-            }
-            return null;
-        }
-
-        private string GetGroupName(string organizationId) => $"{_organizationPrefix}{organizationId}";
+        private string GetGroupName() => $"{_organizationPrefix}test_org_id"; //$"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";
 
     }
 }

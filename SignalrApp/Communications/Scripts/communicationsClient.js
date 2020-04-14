@@ -11,8 +11,8 @@
                 communicationType: 1,
                 title: "test title",
                 message: "test message",
-                organizationId: "test org id",
-                userId: "test user id",
+                organizationId: "test_org_id",
+                userId: "test_user_id",
                 isPersist: false
             };
             theHub.server.sendMessage(dataToSend);
