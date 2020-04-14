@@ -57,14 +57,13 @@ namespace SignalrApp.Communications
                     proxy = Clients.User(message.UserId);
                     break;
             }
-            var tasks = new List<Task>() { proxy?.Invoke(_clientReceiveMessageMethodName, message) };
+            proxy?.Invoke(_clientReceiveMessageMethodName, message);
             if (message.IsPersist)
             {
                 //use DI here
                 var repository = new MessageRepository();
-                tasks.Add(repository.InsertMessage(message));
+                repository.InsertMessage(message);
             }
-            Task.WaitAll(tasks.ToArray());
         }
 
         private string GetGroupName() => $"{_organizationPrefix}test_org_id"; //$"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";

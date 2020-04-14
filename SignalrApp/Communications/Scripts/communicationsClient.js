@@ -13,7 +13,7 @@
                 message: "test message",
                 organizationId: "test_org_id",
                 userId: "test_user_id",
-                isPersist: false
+                isPersist: 1
             };
             theHub.server.sendMessage(dataToSend);
         });
