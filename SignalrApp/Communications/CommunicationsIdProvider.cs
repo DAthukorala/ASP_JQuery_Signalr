@@ -8,9 +8,10 @@ namespace SignalrApp.Communications
 {
     public class CommunicationsIdProvider : IUserIdProvider
     {
+        //replace these key values with the values that are used in your authentication token
         private const string _claimTypeUserId = "LoggedInUserId";
         private const string _claimTypeOrganizationId = "CurrentOrganizationId";
-
+                
         public string GetUserId(IRequest request)
         {
             var claim = GetUserId(request.User);
@@ -23,6 +24,11 @@ namespace SignalrApp.Communications
             return userId;
         }
 
+        /// <summary>
+        /// Get the organization id to be used in the hub to maintain user's communication group
+        /// </summary>
+        /// <param name="user">access token</param>
+        /// <returns></returns>
         public static string GetOrganizationId(IPrincipal user)
         {
             var organizationId = GetClaimValue(user, _claimTypeOrganizationId);

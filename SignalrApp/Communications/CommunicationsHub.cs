@@ -6,11 +6,18 @@ using System.Threading.Tasks;
 
 namespace SignalrApp.Communications
 {
+    //user will always be part of an organization
+    //so when the user logs in, we need to read the organization info from the user access token and add the user to that organization's group
+    //when the user disconnects or change the organization, we need to remove the user from the current logged in organization and join him to the new organization
+    //JoinOrganizationGroup and LeaveOrganizationGroup methods can be access through the jquery signalr client.
+    //so when the user change organization->
+    //1. call leave organization before user changes organization (so the claim still have the old organization name)
+    //2. call join organization after user successfully changed the organization (so the claim will have the current organization info)
     public class CommunicationsHub : Hub
     {
         private const string _organizationPrefix = "Organization_";
         private const string _clientReceiveMessageMethodName = "receiveMessage";
-
+        
         public override async Task OnConnected()
         {
             await JoinOrganizationGroup();
@@ -28,8 +35,7 @@ namespace SignalrApp.Communications
             await JoinOrganizationGroup();
             await base.OnReconnected();
         }
-
-        //to change organization, call LeaveOrganizationGroup before changing organization and JoinOrganizationGroup after change
+                
         public async Task JoinOrganizationGroup()
         {
             var groupName = GetGroupName();
@@ -66,7 +72,7 @@ namespace SignalrApp.Communications
             }
         }
 
-        private string GetGroupName() => $"{_organizationPrefix}test_org_id"; //$"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";
+        private string GetGroupName() =>$"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";// $"{_organizationPrefix}test_org_id"; 
 
     }
 }
