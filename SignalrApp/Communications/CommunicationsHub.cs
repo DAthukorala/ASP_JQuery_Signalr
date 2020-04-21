@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
 using SignalrApp.Communications.Models;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace SignalrApp.Communications
@@ -10,14 +9,12 @@ namespace SignalrApp.Communications
     //so when the user logs in, we need to read the organization info from the user access token and add the user to that organization's group
     //when the user disconnects or change the organization, we need to remove the user from the current logged in organization and join him to the new organization
     //JoinOrganizationGroup and LeaveOrganizationGroup methods can be access through the jquery signalr client.
-    //so when the user change organization->
-    //1. call leave organization before user changes organization (so the claim still have the old organization name)
-    //2. call join organization after user successfully changed the organization (so the claim will have the current organization info)
     public class CommunicationsHub : Hub
     {
         private const string _organizationPrefix = "Organization_";
         private const string _clientReceiveMessageMethodName = "receiveMessage";
-        
+        private readonly static ConnectionMapping _userConnectionMap = new ConnectionMapping();
+
         public override async Task OnConnected()
         {
             await JoinOrganizationGroup();
@@ -35,16 +32,18 @@ namespace SignalrApp.Communications
             await JoinOrganizationGroup();
             await base.OnReconnected();
         }
-                
+
         public async Task JoinOrganizationGroup()
         {
-            var groupName = GetGroupName();
+            var (groupName, id) = GetConnectionInfo();
+            _userConnectionMap.Add(id, Context.ConnectionId);
             await Groups.Add(Context.ConnectionId, groupName);
         }
 
         public async Task LeaveOrganizationGroup()
         {
-            var groupName = GetGroupName();
+            var (groupName, id) = GetConnectionInfo();
+            _userConnectionMap.Remove(id, Context.ConnectionId);
             await Groups.Remove(Context.ConnectionId, groupName);
         }
 
@@ -60,19 +59,40 @@ namespace SignalrApp.Communications
                     proxy = Clients.Group(GetGroupName());
                     break;
                 case RecipientType.User:
-                    proxy = Clients.User(message.UserId);
+                    proxy = Clients.Client(GetConnectionid(message.UserId));
                     break;
             }
             proxy?.Invoke(_clientReceiveMessageMethodName, message);
+
             if (message.IsPersist)
             {
-                //use DI here
                 var repository = new MessageRepository();
                 repository.InsertMessage(message);
             }
         }
 
-        private string GetGroupName() =>$"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";// $"{_organizationPrefix}test_org_id"; 
+        private (string groupName, string id) GetConnectionInfo() => (GetGroupName(), GetConnectionid());
+
+        private string GetGroupName() => $"{_organizationPrefix}{CommunicationsIdProvider.GetOrganizationId(Context.User)}";
+
+        private string GetConnectionid() => $"{CommunicationsIdProvider.GetOrganizationId(Context.User)}_{CommunicationsIdProvider.GetUserId(Context.User)}";
+
+        private string GetConnectionid(string userId) => _userConnectionMap.GetConnections($"{CommunicationsIdProvider.GetOrganizationId(Context.User)}_{userId}");
+
+        //please use below code to replace above for demo purposes
+        //private string GetGroupName() => $"{_organizationPrefix}{GetRandomOrgId()}";
+        //private string GetConnectionid() => $"{GetRandomOrgId()}_{GetRandomuserId()}";
+        //private string GetConnectionid(string userId) => _userConnectionMap.GetConnections($"{GetRandomOrgId()}_user_{userId}");
+        //private string GetRandomuserId()
+        //{
+        //    Random random = new Random();
+        //    return $"user_{random.Next(0, 4)}";
+        //}
+        //private string GetRandomOrgId()
+        //{
+        //    Random random = new Random();
+        //    return $"organization_{random.Next(0, 2)}";
+        //}
 
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace SignalrApp.Communications.Models
+﻿using System;
+
+namespace SignalrApp.Communications.Models
 {
     //we can add some fluent validation here, if needed
     public class CommunicationMessage
@@ -10,5 +12,6 @@
         public string UserId { get; set; }
         public bool IsPersist { get; set; }
         public bool IsRead { get; set; }
+        public DateTime TimeStamp { get; set; }
     }
 }
